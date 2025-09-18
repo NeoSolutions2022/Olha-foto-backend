@@ -24,8 +24,25 @@ if (!process.env.DATABASE_URL) {
   console.warn('DATABASE_URL environment variable is not set. Database operations will fail.');
 }
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Authentication API running on port ${PORT}`);
+});
+
+const gracefulShutdown = (signal) => {
+  console.log(`${signal} received. Closing server gracefully.`);
+  server.close(() => {
+    console.log('Server closed. Exiting process.');
+    process.exit(0);
+  });
+
+  setTimeout(() => {
+    console.error('Graceful shutdown timed out. Forcing exit.');
+    process.exit(1);
+  }, 10000).unref();
+};
+
+['SIGTERM', 'SIGINT'].forEach((signal) => {
+  process.on(signal, () => gracefulShutdown(signal));
 });
 
 export default app;

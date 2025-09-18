@@ -36,11 +36,22 @@ const shutdown = (signal) => {
       process.exit(1);
       return;
     }
+
+    console.log('HTTP server closed gracefully');
     process.exit(0);
   });
 };
 
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
+['SIGTERM', 'SIGINT'].forEach((signal) => {
+  process.once(signal, () => shutdown(signal));
+});
+
+const handleUnexpectedError = (error) => {
+  console.error('Unexpected error encountered, shutting down', error);
+  shutdown('UNEXPECTED_ERROR');
+};
+
+process.once('unhandledRejection', handleUnexpectedError);
+process.once('uncaughtException', handleUnexpectedError);
 
 export default app;

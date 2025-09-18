@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import authRoutes from './routes/authRoutes.js';
+import pool from './db/index.js';
 
 const app = express();
 
@@ -29,21 +30,51 @@ const server = app.listen(PORT, HOST, () => {
   console.log(`Authentication API running on http://${HOST}:${PORT}`);
 });
 
-const gracefulShutdown = (signal) => {
-  console.log(`${signal} received. Closing server gracefully.`);
-  server.close(() => {
-    console.log('Server closed. Exiting process.');
-    process.exit(0);
-  });
+let isShuttingDown = false;
 
-  setTimeout(() => {
+const gracefulShutdown = async (signal) => {
+  if (isShuttingDown) {
+    return;
+  }
+
+  isShuttingDown = true;
+  console.log(`${signal} received. Closing server gracefully.`);
+
+  const timeout = setTimeout(() => {
     console.error('Graceful shutdown timed out. Forcing exit.');
     process.exit(1);
-  }, 10000).unref();
+  }, 10000);
+  timeout.unref();
+
+  try {
+    await new Promise((resolve, reject) => {
+      server.close((err) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve();
+        }
+      });
+    });
+    console.log('Server closed. Closing database connections.');
+
+    await pool.end();
+    console.log('Database connections closed.');
+
+    clearTimeout(timeout);
+    console.log('Server closed. Exiting process.');
+    process.exit(0);
+  } catch (error) {
+    console.error('Error during graceful shutdown:', error);
+    clearTimeout(timeout);
+    process.exit(1);
+  }
 };
 
 ['SIGTERM', 'SIGINT'].forEach((signal) => {
-  process.on(signal, () => gracefulShutdown(signal));
+  process.on(signal, () => {
+    gracefulShutdown(signal);
+  });
 });
 
 export default app;

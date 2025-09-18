@@ -18,14 +18,15 @@ app.use((err, _req, res, _next) => {
   res.status(status).json({ error: message });
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = Number(process.env.PORT) || 3000;
+const HOST = process.env.HOST || '0.0.0.0';
 
 if (!process.env.DATABASE_URL) {
   console.warn('DATABASE_URL environment variable is not set. Database operations will fail.');
 }
 
-const server = app.listen(PORT, () => {
-  console.log(`Authentication API running on port ${PORT}`);
+const server = app.listen(PORT, HOST, () => {
+  console.log(`Authentication API running on http://${HOST}:${PORT}`);
 });
 
 const gracefulShutdown = (signal) => {

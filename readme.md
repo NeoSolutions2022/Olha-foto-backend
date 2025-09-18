@@ -14,6 +14,7 @@ Esta aplicação fornece uma API de autenticação em Node.js baseada em Express
 | --- | --- | --- |
 | `DATABASE_URL` | String de conexão completa do PostgreSQL. Obrigatória. | — |
 | `PORT` | Porta HTTP exposta pela API. | `3000` |
+| `HOST` | Interface de rede que a API deve escutar. | `0.0.0.0` |
 | `JWT_SECRET` | Segredo utilizado para assinar tokens JWT. | `changeme` |
 | `JWT_EXPIRATION` | Tempo de expiração do token de acesso. | `15m` |
 | `REFRESH_TOKEN_TTL_DAYS` | Validade (em dias) do token de refresh. | `7` |

@@ -1,4 +1,6 @@
 import 'dotenv/config';
+import path from 'path';
+import { pathToFileURL } from 'url';
 import express from 'express';
 import authRoutes from './routes/authRoutes.js';
 import pool from './db/index.js';
@@ -26,14 +28,12 @@ if (!process.env.DATABASE_URL) {
   console.warn('DATABASE_URL environment variable is not set. Database operations will fail.');
 }
 
-const server = app.listen(PORT, HOST, () => {
-  console.log(`Authentication API running on http://${HOST}:${PORT}`);
-});
-
+let server;
 let isShuttingDown = false;
+let hasRegisteredSignalHandlers = false;
 
-const gracefulShutdown = async (signal) => {
-  if (isShuttingDown) {
+const gracefulShutdown = async (signal, shouldExit = true) => {
+  if (isShuttingDown || !server) {
     return;
   }
 
@@ -42,7 +42,9 @@ const gracefulShutdown = async (signal) => {
 
   const timeout = setTimeout(() => {
     console.error('Graceful shutdown timed out. Forcing exit.');
-    process.exit(1);
+    if (shouldExit) {
+      process.exit(1);
+    }
   }, 10000);
 
   try {
@@ -57,22 +59,75 @@ const gracefulShutdown = async (signal) => {
     });
     console.log('Server closed.');
 
+    server = undefined;
+
     await pool.end();
-    console.log('Database connections closed. Exiting process.');
+    console.log(shouldExit ? 'Database connections closed. Exiting process.' : 'Database connections closed.');
 
     clearTimeout(timeout);
-    process.exit(0);
+
+    if (shouldExit) {
+      process.exit(0);
+    }
   } catch (error) {
     console.error('Error during graceful shutdown:', error);
     clearTimeout(timeout);
-    process.exit(1);
+
+    if (shouldExit) {
+      process.exit(1);
+    } else {
+      throw error;
+    }
+  } finally {
+    isShuttingDown = false;
   }
 };
 
-['SIGTERM', 'SIGINT'].forEach((signal) => {
-  process.on(signal, () => {
-    gracefulShutdown(signal);
+const registerSignalHandlers = () => {
+  if (hasRegisteredSignalHandlers) {
+    return;
+  }
+
+  ['SIGTERM', 'SIGINT'].forEach((signal) => {
+    process.on(signal, () => {
+      gracefulShutdown(signal).catch((error) => {
+        console.error('Error during graceful shutdown:', error);
+        process.exit(1);
+      });
+    });
   });
-});
+
+  hasRegisteredSignalHandlers = true;
+};
+
+export const startServer = () => {
+  if (server) {
+    return server;
+  }
+
+  server = app.listen(PORT, HOST, () => {
+    console.log(`Authentication API running on http://${HOST}:${PORT}`);
+  });
+
+  registerSignalHandlers();
+
+  return server;
+};
+
+export const stopServer = async () => {
+  if (!server) {
+    return;
+  }
+
+  await gracefulShutdown('STOP', false);
+};
+
+const isRunDirectly = Boolean(
+  process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href
+);
+
+if (isRunDirectly) {
+  startServer();
+}
 
 export default app;

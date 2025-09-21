@@ -5,6 +5,7 @@ import { pathToFileURL } from 'url';
 import express from 'express';
 import authRoutes from './routes/authRoutes.js';
 import pool from './db/index.js';
+import { logShutdownDiagnostics } from './utils/shutdownDiagnostics.js';
 
 const app = express();
 
@@ -79,7 +80,29 @@ const gracefulShutdown = async (signal, shouldExit = true) => {
   }
 
   isShuttingDown = true;
+  logShutdownDiagnostics(signal, { dbPool: pool });
   console.log(`${signal} received. Closing server gracefully.`);
+
+  if (typeof server.getConnections === 'function') {
+    try {
+      const connections = await new Promise((resolve) => {
+        server.getConnections((error, count) => {
+          if (error) {
+            console.error('Failed to read HTTP connection count during shutdown:', error);
+            resolve(undefined);
+          } else {
+            resolve(count);
+          }
+        });
+      });
+
+      if (typeof connections === 'number') {
+        console.warn(`HTTP connections open before shutdown: ${connections}`);
+      }
+    } catch (error) {
+      console.error('Error while retrieving HTTP connection count:', error);
+    }
+  }
 
   const timeout = setTimeout(() => {
     console.error('Graceful shutdown timed out. Forcing exit.');

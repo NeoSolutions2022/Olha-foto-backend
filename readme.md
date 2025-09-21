@@ -55,7 +55,10 @@ docker run --rm -p 3000:3000 \
 npm run migrate:status
 ```
 
-A primeira migração (`0001_create_auth_schema.sql`) cria as tabelas `users`, `roles`, `user_roles`, `refresh_tokens`, bem como uma função de atualização de `updated_at` e papéis padrão (`user` e `admin`).
+As migrações incluem:
+
+- `0001_create_auth_schema.sql`: cria as tabelas `users`, `roles`, `user_roles`, `refresh_tokens`, bem como a função `set_updated_at` e papéis padrão (`user` e `admin`).
+- `0002_create_event_schema.sql`: adiciona `event_categories`, `events`, `event_tags` e `event_highlights`, além de enums e índices auxiliares. A API não implementa endpoints para este domínio; a manipulação deve ser feita diretamente pelo Hasura utilizando essas tabelas.
 
 ## Endpoints Disponíveis
 

@@ -13,7 +13,7 @@ const buildRequestMetadata = (req) => ({
 
 export const register = async (req, res, next) => {
   try {
-    const { email, password, displayName } = req.body;
+    const { email, password, displayName, role } = req.body;
 
     if (!email || !password || !displayName) {
       const error = new Error('email, password and displayName are required');
@@ -21,7 +21,7 @@ export const register = async (req, res, next) => {
       throw error;
     }
 
-    const result = await registerUser({ email, password, displayName }, buildRequestMetadata(req));
+    const result = await registerUser({ email, password, displayName, role }, buildRequestMetadata(req));
     res.status(201).json(result);
   } catch (error) {
     next(error);

@@ -3,12 +3,19 @@ import { query, withTransaction } from '../db/index.js';
 import { hashPassword, comparePassword } from '../utils/password.js';
 import { generateAccessToken, generateRefreshToken, hashToken } from '../utils/token.js';
 
-const DEFAULT_ROLE = process.env.DEFAULT_ROLE || 'user';
+const KNOWN_ROLES = ['user', 'photographer', 'admin'];
+const ROLE_SET = new Set(KNOWN_ROLES);
+const DEFAULT_ROLE = (process.env.DEFAULT_ROLE || 'user').toLowerCase();
+
+if (!ROLE_SET.has(DEFAULT_ROLE)) {
+  throw new Error(`DEFAULT_ROLE must be one of: ${KNOWN_ROLES.join(', ')}`);
+}
 
 const mapUser = (row) => ({
   id: row.id,
   email: row.email,
   displayName: row.display_name,
+  role: row.role,
   isActive: row.is_active,
   createdAt: row.created_at,
   updatedAt: row.updated_at
@@ -30,15 +37,19 @@ const fetchUserById = async (client, id) => {
   return result.rows[0] || null;
 };
 
-const fetchRolesForUser = async (client, userId) => {
-  const result = await client.query(
-    `SELECT r.name
-       FROM public.roles r
-       INNER JOIN public.user_roles ur ON ur.role_id = r.id
-      WHERE ur.user_id = $1`,
-    [userId]
-  );
-  return result.rows.map((row) => row.name);
+const resolveRole = (requestedRole) => {
+  if (!requestedRole) {
+    return DEFAULT_ROLE;
+  }
+
+  const normalized = String(requestedRole).toLowerCase();
+  if (!ROLE_SET.has(normalized)) {
+    const error = new Error(`Invalid role. Supported roles: ${KNOWN_ROLES.join(', ')}`);
+    error.status = 400;
+    throw error;
+  }
+
+  return normalized;
 };
 
 const persistRefreshToken = async (client, userId, refreshToken, metadata = {}) => {
@@ -53,12 +64,13 @@ const persistRefreshToken = async (client, userId, refreshToken, metadata = {}) 
 };
 
 const buildAuthPayload = async (client, user, metadata) => {
-  const roles = await fetchRolesForUser(client, user.id);
-  const defaultRole = roles.includes(DEFAULT_ROLE) ? DEFAULT_ROLE : roles[0] || DEFAULT_ROLE;
+  const roles = [user.role];
+  const defaultRole = user.role;
 
   const accessToken = generateAccessToken({
     sub: user.id,
     email: user.email,
+    role: user.role,
     roles,
     defaultRole
   });
@@ -75,7 +87,7 @@ const buildAuthPayload = async (client, user, metadata) => {
   };
 };
 
-export const registerUser = async ({ email, password, displayName }, metadata = {}) => {
+export const registerUser = async ({ email, password, displayName, role }, metadata = {}) => {
   return withTransaction(async (client) => {
     const normalizedEmail = email.toLowerCase();
     const existing = await fetchUserByEmail(client, normalizedEmail);
@@ -85,27 +97,29 @@ export const registerUser = async ({ email, password, displayName }, metadata = 
       throw error;
     }
 
-    const roleResult = await client.query('SELECT id FROM public.roles WHERE name = $1', [DEFAULT_ROLE]);
-    if (roleResult.rowCount === 0) {
-      const error = new Error('Default role is not configured in the database');
-      error.status = 500;
-      throw error;
-    }
-
+    const resolvedRole = resolveRole(role);
     const passwordHash = await hashPassword(password);
     const userId = uuid();
     const insertResult = await client.query(
-      `INSERT INTO public.users (id, email, password_hash, display_name)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO public.users (id, email, password_hash, display_name, role)
+       VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
-      [userId, normalizedEmail, passwordHash, displayName]
+      [userId, normalizedEmail, passwordHash, displayName, resolvedRole]
     );
 
-    await client.query(
-      `INSERT INTO public.user_roles (user_id, role_id)
-       VALUES ($1, $2)`,
-      [userId, roleResult.rows[0].id]
-    );
+    if (resolvedRole === 'photographer') {
+      await client.query(
+        `INSERT INTO public.photographers (user_id)
+         VALUES ($1)`,
+        [userId]
+      );
+    } else if (resolvedRole === 'admin') {
+      await client.query(
+        `INSERT INTO public.admins (user_id)
+         VALUES ($1)`,
+        [userId]
+      );
+    }
 
     const authPayload = await buildAuthPayload(client, insertResult.rows[0], metadata);
 
@@ -166,7 +180,6 @@ export const refreshUserSession = async (refreshToken, metadata = {}) => {
       throw error;
     }
 
-    // Rotate refresh token
     await client.query(
       `UPDATE public.refresh_tokens
           SET revoked_at = NOW()
@@ -201,7 +214,7 @@ export const revokeRefreshToken = async (refreshToken) => {
 
 export const getUserProfile = async (userId) => {
   const result = await query(
-    `SELECT id, email, display_name, is_active, created_at, updated_at
+    `SELECT id, email, display_name, role, is_active, created_at, updated_at
        FROM public.users
       WHERE id = $1`,
     [userId]
@@ -211,17 +224,9 @@ export const getUserProfile = async (userId) => {
     return null;
   }
 
-  const rolesResult = await query(
-    `SELECT r.name
-       FROM public.roles r
-       INNER JOIN public.user_roles ur ON ur.role_id = r.id
-      WHERE ur.user_id = $1`,
-    [userId]
-  );
-
+  const user = mapUser(result.rows[0]);
   return {
-    ...mapUser(result.rows[0]),
-    roles: rolesResult.rows.map((row) => row.name)
+    ...user,
+    roles: [user.role]
   };
 };
-

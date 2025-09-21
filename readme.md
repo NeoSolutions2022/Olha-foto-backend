@@ -19,7 +19,7 @@ Esta aplicação fornece uma API de autenticação em Node.js baseada em Express
 | `JWT_EXPIRATION` | Tempo de expiração do token de acesso. | `15m` |
 | `REFRESH_TOKEN_TTL_DAYS` | Validade (em dias) do token de refresh. | `7` |
 | `BCRYPT_SALT_ROUNDS` | Custo da criptografia das senhas. | `10` |
-| `DEFAULT_ROLE` | Nome do papel padrão atribuído a novos usuários. | `user` |
+| `DEFAULT_ROLE` | Nome do papel padrão atribuído a novos usuários (`user`, `photographer` ou `admin`). | `user` |
 | `DB_POOL_MAX` | Número máximo de conexões no pool do PostgreSQL. | `10` |
 | `DB_IDLE_TIMEOUT` | Timeout (ms) para conexões ociosas no pool. | `30000` |
 
@@ -55,7 +55,10 @@ docker run --rm -p 3000:3000 \
 npm run migrate:status
 ```
 
-A primeira migração (`0001_create_auth_schema.sql`) cria as tabelas `users`, `roles`, `user_roles`, `refresh_tokens`, bem como uma função de atualização de `updated_at` e papéis padrão (`user` e `admin`).
+As migrações incluem:
+
+- `0001_create_auth_schema.sql`: cria as tabelas `users` (com a coluna `role` baseada no tipo enumerado `user_role`), `photographers`, `admins` e `refresh_tokens`, além da função que mantém `updated_at` sincronizado.
+- `0002_create_event_schema.sql`: adiciona `event_categories`, `events`, `event_tags` e `event_highlights`, além de enums e índices auxiliares. A API não implementa endpoints para este domínio; a manipulação deve ser feita diretamente pelo Hasura utilizando essas tabelas.
 
 ## Endpoints Disponíveis
 
@@ -73,8 +76,8 @@ Todos os endpoints retornam respostas JSON. Em caso de erro, o corpo conterá `{
 
 A pasta `metadata/` contém a configuração esperada pelo Hasura para refletir as tabelas criadas pela migração:
 
-- Relacionamentos `users -> user_roles`, `users -> refresh_tokens`, `user_roles -> users/roles`, `roles -> user_roles` e `refresh_tokens -> users`.
-- Permissões básicas para o papel `user`, permitindo que ele enxergue apenas seus próprios dados e papéis.
+- Relacionamentos `users -> refresh_tokens`, `users -> photographers/admins` (via relações 1:1) e `refresh_tokens -> users`.
+- Permissões básicas para o papel `user`, permitindo que ele enxergue apenas seus próprios dados e papel associado.
 
 Para carregar a metadata em uma instância Hasura, utilize a CLI:
 
@@ -86,8 +89,8 @@ hasura metadata apply --endpoint <HASURA_URL> --admin-secret <SENHA> --project m
 
 ## Fluxo de Autenticação
 
-1. **Registro**: cria o usuário, salva senha com bcrypt e insere o papel padrão (`DEFAULT_ROLE`).
-2. **Login**: verifica senha, gera um JWT (`sub`, `email`, `roles`, `defaultRole`) e grava um token de refresh com hash SHA-256.
+1. **Registro**: cria o usuário, salva senha com bcrypt e grava o papel escolhido (padrão `DEFAULT_ROLE`) diretamente na tabela `users`.
+2. **Login**: verifica senha, gera um JWT (`sub`, `email`, `role`, `roles`, `defaultRole`) compatível com Hasura e grava um token de refresh com hash SHA-256.
 3. **Refresh**: valida o token de refresh ativo, rotaciona para um novo par e revoga o anterior.
 4. **Logout**: revoga o token de refresh informado.
 

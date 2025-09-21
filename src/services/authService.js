@@ -16,6 +16,8 @@ const mapUser = (row) => ({
   email: row.email,
   displayName: row.display_name,
   role: row.role,
+  cpf: row.cpf,
+  acceptedTerms: row.accepted_terms,
   isActive: row.is_active,
   createdAt: row.created_at,
   updatedAt: row.updated_at
@@ -150,7 +152,7 @@ const buildAuthPayload = async (client, user, metadata) => {
 };
 
 export const registerUser = async (
-  { email, password, displayName, role, photographerProfile },
+  { email, password, displayName, role, cpf, acceptedTerms, photographerProfile },
   metadata = {}
 ) => {
   return withTransaction(async (client) => {
@@ -166,10 +168,18 @@ export const registerUser = async (
     const passwordHash = await hashPassword(password);
     const userId = uuid();
     const insertResult = await client.query(
-      `INSERT INTO public.users (id, email, password_hash, display_name, role)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO public.users (id, email, password_hash, display_name, role, cpf, accepted_terms)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
-      [userId, normalizedEmail, passwordHash, displayName, resolvedRole]
+      [
+        userId,
+        normalizedEmail,
+        passwordHash,
+        displayName,
+        resolvedRole,
+        normalizeText(cpf),
+        Boolean(acceptedTerms)
+      ]
     );
 
     let photographerProfileRow = null;
@@ -317,7 +327,7 @@ export const revokeRefreshToken = async (refreshToken) => {
 
 export const getUserProfile = async (userId) => {
   const result = await query(
-    `SELECT id, email, display_name, role, is_active, created_at, updated_at
+    `SELECT id, email, display_name, role, cpf, accepted_terms, is_active, created_at, updated_at
        FROM public.users
       WHERE id = $1`,
     [userId]

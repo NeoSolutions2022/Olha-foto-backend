@@ -45,6 +45,8 @@ sources:
                 - email
                 - display_name
                 - role
+                - cpf
+                - accepted_terms
                 - is_active
                 - created_at
                 - updated_at

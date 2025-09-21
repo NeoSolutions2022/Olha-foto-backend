@@ -1,11 +1,14 @@
 import 'dotenv/config';
 import path from 'path';
+import { randomUUID } from 'crypto';
 import { pathToFileURL } from 'url';
 import express from 'express';
 import authRoutes from './routes/authRoutes.js';
 import pool from './db/index.js';
 
 const app = express();
+
+const isProduction = process.env.NODE_ENV === 'production';
 
 app.use(express.json());
 
@@ -15,10 +18,48 @@ app.get('/health', (_req, res) => {
 
 app.use('/auth', authRoutes);
 
-app.use((err, _req, res, _next) => {
+const logErrorDetails = (err, req, errorId, status) => {
+  const { method, originalUrl, ip } = req;
+  const baseMessage = err?.message || 'Unknown error';
+
+  console.error(`Error ${errorId}: ${method} ${originalUrl} -> ${status} ${baseMessage}`);
+
+  const context = {
+    errorId,
+    status,
+    method,
+    url: originalUrl,
+    ipAddress: ip || undefined,
+    userId: req.user?.sub
+  };
+
+  console.error('Request context:', Object.fromEntries(
+    Object.entries(context).filter(([, value]) => value !== undefined)
+  ));
+
+  if (err && err.stack) {
+    console.error(err.stack);
+  } else {
+    console.error(err);
+  }
+};
+
+app.use((err, req, res, _next) => {
   const status = err.status || 500;
-  const message = err.message || 'Internal server error';
-  res.status(status).json({ error: message });
+  const errorId = randomUUID();
+
+  logErrorDetails(err, req, errorId, status);
+
+  const isServerError = status >= 500;
+  const responseMessage = isServerError && isProduction ? 'Internal server error' : err.message || 'Internal server error';
+
+  const responsePayload = { error: responseMessage };
+
+  if (isServerError) {
+    responsePayload.errorId = errorId;
+  }
+
+  res.status(status).json(responsePayload);
 });
 
 const PORT = Number(process.env.PORT) || 3000;

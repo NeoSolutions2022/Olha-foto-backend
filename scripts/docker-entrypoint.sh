@@ -34,6 +34,35 @@ if command -v node >/dev/null 2>&1; then
   log "Node version: $(node --version)"
 fi
 
+run_migrations() {
+  if [ "${SKIP_DB_MIGRATIONS:-0}" != "0" ]; then
+    log "Skipping database migrations because SKIP_DB_MIGRATIONS=${SKIP_DB_MIGRATIONS}."
+    return
+  fi
+
+  if [ ! -f scripts/run-migrations.js ]; then
+    log "Migration script not found (scripts/run-migrations.js). Skipping migrations."
+    return
+  fi
+
+  if [ -z "${DATABASE_URL:-}" ]; then
+    log "DATABASE_URL is not set. Skipping migrations."
+    return
+  fi
+
+  log "Running database migrations..."
+  node scripts/run-migrations.js
+  migrate_status=$?
+
+  if [ "$migrate_status" -eq 0 ]; then
+    log "Database migrations applied successfully."
+  else
+    log "Database migrations failed with status ${migrate_status}. Continuing startup."
+  fi
+}
+
+run_migrations
+
 "$@" &
 child_pid=$!
 

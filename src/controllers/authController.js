@@ -13,7 +13,25 @@ const buildRequestMetadata = (req) => ({
 
 export const register = async (req, res, next) => {
   try {
-    const { email, password, displayName, role } = req.body;
+    const {
+      email,
+      password,
+      displayName,
+      role,
+      biography,
+      phoneNumber,
+      phone,
+      websiteUrl,
+      website,
+      socialLinks,
+      profileImageUrl,
+      profilePhotoUrl,
+      coverImageUrl,
+      coverPhotoUrl,
+      cpf,
+      acceptedTerms,
+      photographerProfile: nestedPhotographerProfile
+    } = req.body;
 
     if (!email || !password || !displayName) {
       const error = new Error('email, password and displayName are required');
@@ -21,7 +39,31 @@ export const register = async (req, res, next) => {
       throw error;
     }
 
-    const result = await registerUser({ email, password, displayName, role }, buildRequestMetadata(req));
+    const photographerProfile = {
+      ...(nestedPhotographerProfile || {})
+    };
+
+    const additionalProfileFields = {
+      biography,
+      phoneNumber: phoneNumber ?? phone,
+      websiteUrl: websiteUrl ?? website,
+      socialLinks,
+      profileImageUrl: profileImageUrl ?? profilePhotoUrl,
+      coverImageUrl: coverImageUrl ?? coverPhotoUrl,
+      cpf,
+      acceptedTerms
+    };
+
+    Object.entries(additionalProfileFields).forEach(([key, value]) => {
+      if (value !== undefined) {
+        photographerProfile[key] = value;
+      }
+    });
+
+    const result = await registerUser(
+      { email, password, displayName, role, photographerProfile },
+      buildRequestMetadata(req)
+    );
     res.status(201).json(result);
   } catch (error) {
     next(error);

@@ -66,6 +66,14 @@ sources:
             permission:
               columns:
                 - user_id
+                - biography
+                - phone_number
+                - website_url
+                - social_links
+                - profile_image_url
+                - cover_image_url
+                - cpf
+                - accepted_terms
                 - created_at
               filter:
                 user_id:

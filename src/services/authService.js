@@ -21,6 +21,68 @@ const mapUser = (row) => ({
   updatedAt: row.updated_at
 });
 
+const normalizeText = (value) => {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  const normalized = String(value).trim();
+  return normalized.length > 0 ? normalized : null;
+};
+
+const preparePhotographerProfile = (input = {}) => ({
+  biography: normalizeText(input.biography),
+  phoneNumber: normalizeText(input.phoneNumber ?? input.phone),
+  websiteUrl: normalizeText(input.websiteUrl ?? input.website),
+  socialLinks: normalizeText(input.socialLinks),
+  profileImageUrl: normalizeText(input.profileImageUrl ?? input.profilePhotoUrl),
+  coverImageUrl: normalizeText(input.coverImageUrl ?? input.coverPhotoUrl),
+  cpf: normalizeText(input.cpf),
+  acceptedTerms: Boolean(input.acceptedTerms)
+});
+
+const mapPhotographerProfile = (row) => ({
+  userId: row.user_id,
+  biography: row.biography,
+  phoneNumber: row.phone_number,
+  websiteUrl: row.website_url,
+  socialLinks: row.social_links,
+  profileImageUrl: row.profile_image_url,
+  coverImageUrl: row.cover_image_url,
+  cpf: row.cpf,
+  acceptedTerms: row.accepted_terms,
+  createdAt: row.created_at
+});
+
+const performQuery = (executor, sql, params) => {
+  if (typeof executor === 'function') {
+    return executor(sql, params);
+  }
+
+  if (executor && typeof executor.query === 'function') {
+    return executor.query(sql, params);
+  }
+
+  throw new Error('Invalid query executor provided');
+};
+
+const fetchPhotographerProfileByUserId = async (executor, userId) => {
+  const result = await performQuery(
+    executor,
+    `SELECT user_id, biography, phone_number, website_url, social_links, profile_image_url, cover_image_url, cpf, accepted_term
+s, created_at
+       FROM public.photographers
+      WHERE user_id = $1`,
+    [userId]
+  );
+
+  if (result.rowCount === 0) {
+    return null;
+  }
+
+  return mapPhotographerProfile(result.rows[0]);
+};
+
 const fetchUserByEmail = async (client, email) => {
   const result = await client.query(
     'SELECT * FROM public.users WHERE email = $1',
@@ -87,7 +149,10 @@ const buildAuthPayload = async (client, user, metadata) => {
   };
 };
 
-export const registerUser = async ({ email, password, displayName, role }, metadata = {}) => {
+export const registerUser = async (
+  { email, password, displayName, role, photographerProfile },
+  metadata = {}
+) => {
   return withTransaction(async (client) => {
     const normalizedEmail = email.toLowerCase();
     const existing = await fetchUserByEmail(client, normalizedEmail);
@@ -107,12 +172,36 @@ export const registerUser = async ({ email, password, displayName, role }, metad
       [userId, normalizedEmail, passwordHash, displayName, resolvedRole]
     );
 
+    let photographerProfileRow = null;
     if (resolvedRole === 'photographer') {
-      await client.query(
-        `INSERT INTO public.photographers (user_id)
-         VALUES ($1)`,
-        [userId]
+      const preparedProfile = preparePhotographerProfile(photographerProfile);
+      const photographerInsertResult = await client.query(
+        `INSERT INTO public.photographers (
+            user_id,
+            biography,
+            phone_number,
+            website_url,
+            social_links,
+            profile_image_url,
+            cover_image_url,
+            cpf,
+            accepted_terms
+         )
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         RETURNING user_id, biography, phone_number, website_url, social_links, profile_image_url, cover_image_url, cpf, accepted_terms, created_at`,
+        [
+          userId,
+          preparedProfile.biography,
+          preparedProfile.phoneNumber,
+          preparedProfile.websiteUrl,
+          preparedProfile.socialLinks,
+          preparedProfile.profileImageUrl,
+          preparedProfile.coverImageUrl,
+          preparedProfile.cpf,
+          preparedProfile.acceptedTerms
+        ]
       );
+      photographerProfileRow = photographerInsertResult.rows[0] || null;
     } else if (resolvedRole === 'admin') {
       await client.query(
         `INSERT INTO public.admins (user_id)
@@ -125,6 +214,9 @@ export const registerUser = async ({ email, password, displayName, role }, metad
 
     return {
       user: mapUser(insertResult.rows[0]),
+      photographerProfile: photographerProfileRow
+        ? mapPhotographerProfile(photographerProfileRow)
+        : null,
       ...authPayload
     };
   });
@@ -146,9 +238,15 @@ export const authenticateUser = async ({ email, password }, metadata = {}) => {
       throw error;
     }
 
+    const photographerProfile =
+      user.role === 'photographer'
+        ? await fetchPhotographerProfileByUserId(client, user.id)
+        : null;
+    const payload = await buildAuthPayload(client, user, metadata);
     return {
       user: mapUser(user),
-      ...(await buildAuthPayload(client, user, metadata))
+      photographerProfile,
+      ...payload
     };
   });
 };
@@ -194,9 +292,14 @@ export const refreshUserSession = async (refreshToken, metadata = {}) => {
       throw error;
     }
 
+    const photographerProfile =
+      user.role === 'photographer'
+        ? await fetchPhotographerProfileByUserId(client, user.id)
+        : null;
     const payload = await buildAuthPayload(client, user, metadata);
     return {
       user: mapUser(user),
+      photographerProfile,
       ...payload
     };
   });
@@ -225,8 +328,14 @@ export const getUserProfile = async (userId) => {
   }
 
   const user = mapUser(result.rows[0]);
+  const photographerProfile =
+    user.role === 'photographer'
+      ? await fetchPhotographerProfileByUserId(query, userId)
+      : null;
+
   return {
     ...user,
-    roles: [user.role]
+    roles: [user.role],
+    photographerProfile
   };
 };

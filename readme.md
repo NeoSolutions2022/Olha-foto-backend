@@ -58,6 +58,7 @@ npm run migrate:status
 As migrações incluem:
 
 - `0001_create_auth_schema.sql`: cria as tabelas `users` (com a coluna `role` baseada no tipo enumerado `user_role`), `photographers`, `admins` e `refresh_tokens`, além da função que mantém `updated_at` sincronizado.
+
 - `0002_create_event_schema.sql`: adiciona `event_categories`, `events`, `event_tags` e `event_highlights`, além de enums e índices auxiliares. A API não implementa endpoints para este domínio; a manipulação deve ser feita diretamente pelo Hasura utilizando essas tabelas.
 
 ## Endpoints Disponíveis

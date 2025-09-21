@@ -22,6 +22,7 @@ Esta aplicação fornece uma API de autenticação em Node.js baseada em Express
 | `DEFAULT_ROLE` | Nome do papel padrão atribuído a novos usuários (`user`, `photographer` ou `admin`). | `user` |
 | `DB_POOL_MAX` | Número máximo de conexões no pool do PostgreSQL. | `10` |
 | `DB_IDLE_TIMEOUT` | Timeout (ms) para conexões ociosas no pool. | `30000` |
+| `SKIP_DB_MIGRATIONS` | Se definido como valor diferente de `0`, pula as migrações no início do container Docker. | `0` |
 
 ## Instalação e Execução Local
 
@@ -43,7 +44,9 @@ docker run --rm -p 3000:3000 \
   olha-foto-auth
 ```
 
-> O container não cria o banco de dados; apenas utiliza o existente. Basta passar `DATABASE_URL` com as credenciais corretas.
+> Ao iniciar, o entrypoint do container tenta aplicar automaticamente as migrações (`scripts/run-migrations.js`). Caso falhem, o log exibirá
+> o erro, mas a API continuará subindo normalmente. Se preferir pular essa etapa (por exemplo, em ambientes controlados por outra ferramenta
+> de migrações), defina `SKIP_DB_MIGRATIONS=1`.
 
 ## Migrações de Banco
 

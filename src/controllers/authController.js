@@ -61,7 +61,7 @@ export const register = async (req, res, next) => {
     });
 
     const result = await registerUser(
-      { email, password, displayName, role, photographerProfile },
+      { email, password, displayName, role, cpf, acceptedTerms, photographerProfile },
       buildRequestMetadata(req)
     );
     res.status(201).json(result);

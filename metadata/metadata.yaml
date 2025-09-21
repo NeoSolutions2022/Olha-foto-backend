@@ -12,14 +12,24 @@ sources:
       - table:
           schema: public
           name: users
-        array_relationships:
-          - name: user_roles
+        object_relationships:
+          - name: photographer_profile
             using:
-              foreign_key_constraint_on:
-                column: user_id
-                table:
+              manual_configuration:
+                remote_table:
                   schema: public
-                  name: user_roles
+                  name: photographers
+                column_mapping:
+                  id: user_id
+          - name: admin_profile
+            using:
+              manual_configuration:
+                remote_table:
+                  schema: public
+                  name: admins
+                column_mapping:
+                  id: user_id
+        array_relationships:
           - name: refresh_tokens
             using:
               foreign_key_constraint_on:
@@ -34,6 +44,7 @@ sources:
                 - id
                 - email
                 - display_name
+                - role
                 - is_active
                 - created_at
                 - updated_at
@@ -42,53 +53,34 @@ sources:
                   _eq: X-Hasura-User-Id
               limit: null
               allow_aggregations: false
+
       - table:
           schema: public
-          name: roles
-        array_relationships:
-          - name: user_roles
-            using:
-              foreign_key_constraint_on:
-                column: role_id
-                table:
-                  schema: public
-                  name: user_roles
-        select_permissions:
-          - role: user
-            permission:
-              columns:
-                - id
-                - name
-                - description
-                - created_at
-              filter:
-                user_roles:
-                  user_id:
-                    _eq: X-Hasura-User-Id
-              allow_aggregations: false
-              limit: null
-      - table:
-          schema: public
-          name: user_roles
+          name: photographers
         object_relationships:
           - name: user
             using:
               foreign_key_constraint_on: user_id
-          - name: role
-            using:
-              foreign_key_constraint_on: role_id
         select_permissions:
           - role: user
             permission:
               columns:
                 - user_id
-                - role_id
-                - assigned_at
+                - created_at
               filter:
                 user_id:
                   _eq: X-Hasura-User-Id
-              allow_aggregations: false
               limit: null
+              allow_aggregations: false
+
+      - table:
+          schema: public
+          name: admins
+        object_relationships:
+          - name: user
+            using:
+              foreign_key_constraint_on: user_id
+
       - table:
           schema: public
           name: refresh_tokens
@@ -96,6 +88,7 @@ sources:
           - name: user
             using:
               foreign_key_constraint_on: user_id
+
       - table:
           schema: public
           name: event_categories
@@ -119,6 +112,7 @@ sources:
               filter: {}
               allow_aggregations: false
               limit: null
+
       - table:
           schema: public
           name: events
@@ -178,13 +172,12 @@ sources:
               filter:
                 _or:
                   - visibility:
-                      _in:
-                        - public
-                        - unlisted
+                      _in: [public, unlisted]
                   - owner_id:
                       _eq: X-Hasura-User-Id
               allow_aggregations: false
               limit: null
+
       - table:
           schema: public
           name: event_tags
@@ -204,13 +197,12 @@ sources:
                 event:
                   _or:
                     - visibility:
-                        _in:
-                          - public
-                          - unlisted
+                        _in: [public, unlisted]
                     - owner_id:
                         _eq: X-Hasura-User-Id
               allow_aggregations: false
               limit: null
+
       - table:
           schema: public
           name: event_highlights
@@ -233,11 +225,8 @@ sources:
                 event:
                   _or:
                     - visibility:
-                        _in:
-                          - public
-                          - unlisted
+                        _in: [public, unlisted]
                     - owner_id:
                         _eq: X-Hasura-User-Id
               allow_aggregations: false
               limit: null
-

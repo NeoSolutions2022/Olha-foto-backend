@@ -88,6 +88,7 @@ const HOST = process.env.HOST || '0.0.0.0';
 let server;
 let isShuttingDown = false;
 let hasRegisteredSignalHandlers = false;
+let hasRegisteredGlobalErrorHandlers = false;
 
 const gracefulShutdown = async (signal, shouldExit = true) => {
   if (isShuttingDown || !server) {
@@ -179,6 +180,57 @@ const registerSignalHandlers = () => {
   hasRegisteredSignalHandlers = true;
 };
 
+const registerGlobalErrorHandlers = () => {
+  if (hasRegisteredGlobalErrorHandlers) {
+    return;
+  }
+
+  const formatError = (error) => {
+    if (error instanceof Error) {
+      return error;
+    }
+
+    if (typeof error === 'string') {
+      return new Error(error);
+    }
+
+    try {
+      return new Error(JSON.stringify(error, null, 2));
+    } catch (_jsonError) {
+      return new Error(String(error));
+    }
+  };
+
+  const handleFatal = async (error, origin) => {
+    const normalizedError = formatError(error);
+    console.error(`[fatal] ${origin} detected.`, normalizedError);
+
+    try {
+      await gracefulShutdown('FATAL_ERROR', false);
+    } catch (shutdownError) {
+      console.error('[fatal] Failed during graceful shutdown after fatal error:', shutdownError);
+    } finally {
+      process.exit(1);
+    }
+  };
+
+  process.on('unhandledRejection', (reason) => {
+    handleFatal(reason, 'unhandledRejection').catch((error) => {
+      console.error('[fatal] Unexpected error while handling unhandledRejection:', error);
+      process.exit(1);
+    });
+  });
+
+  process.on('uncaughtException', (error) => {
+    handleFatal(error, 'uncaughtException').catch((shutdownError) => {
+      console.error('[fatal] Unexpected error while handling uncaughtException:', shutdownError);
+      process.exit(1);
+    });
+  });
+
+  hasRegisteredGlobalErrorHandlers = true;
+};
+
 export const startServer = () => {
   if (server) {
     return server;
@@ -189,6 +241,7 @@ export const startServer = () => {
   });
 
   registerSignalHandlers();
+  registerGlobalErrorHandlers();
 
   return server;
 };

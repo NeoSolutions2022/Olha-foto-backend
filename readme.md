@@ -35,6 +35,19 @@ npm run dev          # inicia a API em modo desenvolvimento
 
 A API expõe um endpoint de verificação em `GET /health` que pode ser usado para validar se o serviço está de pé.
 
+## Diagnóstico de Problemas
+
+- Execute `npm run diagnose` para validar rapidamente a configuração da aplicação. O script verifica se o `HOST`/`PORT` permitem
+  acessos externos, garante que a `DATABASE_URL` esteja definida corretamente e tenta abrir uma conexão real com o PostgreSQL
+  (executando `SELECT NOW()`). Erros de conexão são exibidos imediatamente com o detalhe retornado pelo driver.
+- Ao iniciar, o backend informa (sem expor credenciais) qual host/banco estão configurados em `DATABASE_URL`. Procure por logs no
+  formato `[database] PostgreSQL connection configured (...)` para confirmar se a aplicação está apontando para o servidor
+  esperado.
+- Caso a aplicação encerre por exceções não tratadas ou rejeições de Promise, o log conterá entradas `[fatal]` seguidas do stack
+  trace e, na sequência, um bloco `Shutdown diagnostics snapshot` com contexto do ambiente (host, variáveis relevantes, conexões
+  de banco, etc.). Esse bloco ajuda a identificar se o processo recebeu um `SIGTERM` externo ou se algum erro interno causou a
+  queda.
+
 ## Execução com Docker
 
 ```bash

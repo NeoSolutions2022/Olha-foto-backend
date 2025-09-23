@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import './config/loadEnv.js';
 import path from 'path';
 import { randomUUID } from 'crypto';
 import { pathToFileURL } from 'url';
@@ -84,10 +84,6 @@ app.use((err, req, res, _next) => {
 
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
-
-if (!process.env.DATABASE_URL) {
-  console.warn('DATABASE_URL environment variable is not set. Database operations will fail.');
-}
 
 let server;
 let isShuttingDown = false;

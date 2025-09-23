@@ -27,6 +27,7 @@ Esta aplicação fornece uma API de autenticação em Node.js baseada em Express
 ## Instalação e Execução Local
 
 ```bash
+cp .env.example .env # copie o arquivo de exemplo e ajuste as variáveis conforme o seu ambiente
 npm install
 npm run migrate      # aplica as migrações no banco apontado pela DATABASE_URL
 npm run dev          # inicia a API em modo desenvolvimento

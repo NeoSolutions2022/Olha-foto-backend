@@ -1,12 +1,9 @@
 import pg from 'pg';
+import { getDatabaseConnectionString } from '../config/databaseConfig.js';
 
 const { Pool } = pg;
 
-const connectionString = process.env.DATABASE_URL;
-
-if (!connectionString) {
-  console.warn('DATABASE_URL is required to connect to PostgreSQL.');
-}
+const connectionString = getDatabaseConnectionString();
 
 const pool = new Pool({
   connectionString,

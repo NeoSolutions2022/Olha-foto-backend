@@ -82,7 +82,7 @@ As migrações incluem:
 
 | Método | Rota | Descrição |
 | --- | --- | --- |
-| `POST` | `/auth/register` | Cria um novo usuário, atribui o papel padrão e retorna tokens de acesso/refresh. |
+| `POST` | `/auth/register` (`/register`) | Cria um novo usuário, atribui o papel padrão e retorna tokens de acesso/refresh. |
 | `POST` | `/auth/login` | Autentica um usuário existente retornando novos tokens. |
 | `POST` | `/auth/refresh` | Rotaciona o token de refresh e devolve um novo par de tokens. |
 | `POST` | `/auth/logout` | Revoga um token de refresh específico. |

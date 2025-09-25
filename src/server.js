@@ -4,6 +4,7 @@ import { randomUUID } from 'crypto';
 import { pathToFileURL } from 'url';
 import express from 'express';
 import authRoutes from './routes/authRoutes.js';
+import { register as registerController } from './controllers/authController.js';
 import pool from './db/index.js';
 import { logShutdownDiagnostics } from './utils/shutdownDiagnostics.js';
 
@@ -37,6 +38,7 @@ app.get('/health', (_req, res) => {
 });
 
 app.use('/auth', authRoutes);
+app.post('/register', registerController);
 
 const logErrorDetails = (err, req, errorId, status) => {
   const { method, originalUrl, ip } = req;

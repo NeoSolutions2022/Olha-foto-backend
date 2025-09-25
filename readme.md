@@ -77,6 +77,7 @@ As migrações incluem:
 - `0001_create_auth_schema.sql`: cria as tabelas `users` (com a coluna `role` baseada no tipo enumerado `user_role`), `photographers`, `admins` e `refresh_tokens`, além da função que mantém `updated_at` sincronizado.
 
 - `0002_create_event_schema.sql`: adiciona `event_categories`, `events`, `event_tags` e `event_highlights`, além de enums e índices auxiliares. A API não implementa endpoints para este domínio; a manipulação deve ser feita diretamente pelo Hasura utilizando essas tabelas.
+- `0005_insert_default_admin_user.sql`: garante a existência de um administrador padrão (`admin@admin.com` / `admin@mudar123`), atualizando a senha sempre que a migração for reaplicada e ligando o registro à tabela `admins`.
 
 ## Endpoints Disponíveis
 

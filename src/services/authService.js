@@ -71,8 +71,7 @@ const performQuery = (executor, sql, params) => {
 const fetchPhotographerProfileByUserId = async (executor, userId) => {
   const result = await performQuery(
     executor,
-    `SELECT user_id, biography, phone_number, website_url, social_links, profile_image_url, cover_image_url, cpf, accepted_term
-s, created_at
+    `SELECT user_id, biography, phone_number, website_url, social_links, profile_image_url, cover_image_url, cpf, accepted_terms, created_at
        FROM public.photographers
       WHERE user_id = $1`,
     [userId]

@@ -105,6 +105,30 @@ hasura metadata apply --endpoint <HASURA_URL> --admin-secret <SENHA> --project m
 
 (Substitua `<HASURA_URL>` e `<SENHA>` conforme o ambiente.)
 
+### Configuração do JWT no Hasura
+
+O backend assina os tokens com o segredo simétrico definido em `JWT_SECRET` e inclui os papéis `user`, `photographer` e `admin`.
+No Hasura, configure a variável `HASURA_GRAPHQL_JWT_SECRET` apontando explicitamente cada papel permitido:
+
+```json
+{
+  "type": "HS256",
+  "key": "<mesmo valor de JWT_SECRET>",
+  "claims_namespace": "https://hasura.io/jwt/claims",
+  "claims_format": "json",
+  "claims_map": {
+    "x-hasura-allowed-roles": { "value": ["user", "photographer", "admin"] },
+    "x-hasura-default-role": { "path": "$.defaultRole" },
+    "x-hasura-role": { "path": "$.role" },
+    "x-hasura-user-id": { "path": "$.sub" },
+    "x-hasura-email": { "path": "$.email" }
+  }
+}
+```
+
+Esse mapeamento garante que o Hasura reconheça nominalmente todos os papéis suportados pela aplicação e utilize o papel padrão
+informado no token quando nenhum cabeçalho `x-hasura-role` for enviado.
+
 ## Fluxo de Autenticação
 
 1. **Registro**: cria o usuário, salva senha com bcrypt e grava o papel escolhido (padrão `DEFAULT_ROLE`) diretamente na tabela `users`.

@@ -11,8 +11,19 @@ const buildRequestMetadata = (req) => ({
   ipAddress: req.ip
 });
 
+const ensureJsonBody = (req) => {
+  if (!req.body || typeof req.body !== 'object') {
+    const error = new Error('Request body must be a JSON object');
+    error.status = 400;
+    throw error;
+  }
+
+  return req.body;
+};
+
 export const register = async (req, res, next) => {
   try {
+    const body = ensureJsonBody(req);
     const {
       email,
       password,
@@ -31,7 +42,7 @@ export const register = async (req, res, next) => {
       cpf,
       acceptedTerms,
       photographerProfile: nestedPhotographerProfile
-    } = req.body;
+    } = body;
 
     if (!email || !password || !displayName) {
       const error = new Error('email, password and displayName are required');
@@ -72,7 +83,7 @@ export const register = async (req, res, next) => {
 
 export const login = async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    const { email, password } = ensureJsonBody(req);
 
     if (!email || !password) {
       const error = new Error('email and password are required');
@@ -89,7 +100,7 @@ export const login = async (req, res, next) => {
 
 export const refresh = async (req, res, next) => {
   try {
-    const { refreshToken } = req.body;
+    const { refreshToken } = ensureJsonBody(req);
     if (!refreshToken) {
       const error = new Error('refreshToken is required');
       error.status = 400;
@@ -105,7 +116,7 @@ export const refresh = async (req, res, next) => {
 
 export const logout = async (req, res, next) => {
   try {
-    const { refreshToken } = req.body;
+    const { refreshToken } = ensureJsonBody(req);
     if (!refreshToken) {
       const error = new Error('refreshToken is required');
       error.status = 400;

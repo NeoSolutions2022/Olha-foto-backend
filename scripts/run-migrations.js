@@ -3,6 +3,9 @@ import path from 'path';
 import process from 'process';
 import pg from 'pg';
 
+import '../src/config/loadEnv.js';
+import { getDatabaseConnectionString } from '../src/config/databaseConfig.js';
+
 const { Client } = pg;
 const MIGRATIONS_TABLE = 'auth_schema_migrations';
 const migrationsDir = path.resolve('migrations');
@@ -60,13 +63,15 @@ const applyMigration = async (client, migration) => {
 };
 
 const run = async () => {
-  const { DATABASE_URL } = process.env;
-  if (!DATABASE_URL) {
-    console.error('DATABASE_URL environment variable is required to run migrations.');
+  let connectionString;
+  try {
+    connectionString = getDatabaseConnectionString();
+  } catch (error) {
+    console.error(error.message);
     process.exit(1);
   }
 
-  const client = new Client({ connectionString: DATABASE_URL });
+  const client = new Client({ connectionString });
   await client.connect();
 
   try {

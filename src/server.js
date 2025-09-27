@@ -1,9 +1,10 @@
-import 'dotenv/config';
+import './config/loadEnv.js';
 import path from 'path';
 import { randomUUID } from 'crypto';
 import { pathToFileURL } from 'url';
 import express from 'express';
 import authRoutes from './routes/authRoutes.js';
+import { register as registerController } from './controllers/authController.js';
 import pool from './db/index.js';
 import { logShutdownDiagnostics } from './utils/shutdownDiagnostics.js';
 
@@ -37,6 +38,7 @@ app.get('/health', (_req, res) => {
 });
 
 app.use('/auth', authRoutes);
+app.post('/register', registerController);
 
 const logErrorDetails = (err, req, errorId, status) => {
   const { method, originalUrl, ip } = req;
@@ -85,13 +87,10 @@ app.use((err, req, res, _next) => {
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 
-if (!process.env.DATABASE_URL) {
-  console.warn('DATABASE_URL environment variable is not set. Database operations will fail.');
-}
-
 let server;
 let isShuttingDown = false;
 let hasRegisteredSignalHandlers = false;
+let hasRegisteredGlobalErrorHandlers = false;
 
 const gracefulShutdown = async (signal, shouldExit = true) => {
   if (isShuttingDown || !server) {
@@ -183,6 +182,57 @@ const registerSignalHandlers = () => {
   hasRegisteredSignalHandlers = true;
 };
 
+const registerGlobalErrorHandlers = () => {
+  if (hasRegisteredGlobalErrorHandlers) {
+    return;
+  }
+
+  const formatError = (error) => {
+    if (error instanceof Error) {
+      return error;
+    }
+
+    if (typeof error === 'string') {
+      return new Error(error);
+    }
+
+    try {
+      return new Error(JSON.stringify(error, null, 2));
+    } catch (_jsonError) {
+      return new Error(String(error));
+    }
+  };
+
+  const handleFatal = async (error, origin) => {
+    const normalizedError = formatError(error);
+    console.error(`[fatal] ${origin} detected.`, normalizedError);
+
+    try {
+      await gracefulShutdown('FATAL_ERROR', false);
+    } catch (shutdownError) {
+      console.error('[fatal] Failed during graceful shutdown after fatal error:', shutdownError);
+    } finally {
+      process.exit(1);
+    }
+  };
+
+  process.on('unhandledRejection', (reason) => {
+    handleFatal(reason, 'unhandledRejection').catch((error) => {
+      console.error('[fatal] Unexpected error while handling unhandledRejection:', error);
+      process.exit(1);
+    });
+  });
+
+  process.on('uncaughtException', (error) => {
+    handleFatal(error, 'uncaughtException').catch((shutdownError) => {
+      console.error('[fatal] Unexpected error while handling uncaughtException:', shutdownError);
+      process.exit(1);
+    });
+  });
+
+  hasRegisteredGlobalErrorHandlers = true;
+};
+
 export const startServer = () => {
   if (server) {
     return server;
@@ -193,6 +243,7 @@ export const startServer = () => {
   });
 
   registerSignalHandlers();
+  registerGlobalErrorHandlers();
 
   return server;
 };

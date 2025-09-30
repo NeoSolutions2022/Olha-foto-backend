@@ -27,12 +27,26 @@ Esta aplicação fornece uma API de autenticação em Node.js baseada em Express
 ## Instalação e Execução Local
 
 ```bash
+cp .env.example .env # copie o arquivo de exemplo e ajuste as variáveis conforme o seu ambiente
 npm install
 npm run migrate      # aplica as migrações no banco apontado pela DATABASE_URL
 npm run dev          # inicia a API em modo desenvolvimento
 ```
 
 A API expõe um endpoint de verificação em `GET /health` que pode ser usado para validar se o serviço está de pé.
+
+## Diagnóstico de Problemas
+
+- Execute `npm run diagnose` para validar rapidamente a configuração da aplicação. O script verifica se o `HOST`/`PORT` permitem
+  acessos externos, garante que a `DATABASE_URL` esteja definida corretamente e tenta abrir uma conexão real com o PostgreSQL
+  (executando `SELECT NOW()`). Erros de conexão são exibidos imediatamente com o detalhe retornado pelo driver.
+- Ao iniciar, o backend informa (sem expor credenciais) qual host/banco estão configurados em `DATABASE_URL`. Procure por logs no
+  formato `[database] PostgreSQL connection configured (...)` para confirmar se a aplicação está apontando para o servidor
+  esperado.
+- Caso a aplicação encerre por exceções não tratadas ou rejeições de Promise, o log conterá entradas `[fatal]` seguidas do stack
+  trace e, na sequência, um bloco `Shutdown diagnostics snapshot` com contexto do ambiente (host, variáveis relevantes, conexões
+  de banco, etc.). Esse bloco ajuda a identificar se o processo recebeu um `SIGTERM` externo ou se algum erro interno causou a
+  queda.
 
 ## Execução com Docker
 
@@ -63,12 +77,13 @@ As migrações incluem:
 - `0001_create_auth_schema.sql`: cria as tabelas `users` (com a coluna `role` baseada no tipo enumerado `user_role`), `photographers`, `admins` e `refresh_tokens`, além da função que mantém `updated_at` sincronizado.
 
 - `0002_create_event_schema.sql`: adiciona `event_categories`, `events`, `event_tags` e `event_highlights`, além de enums e índices auxiliares. A API não implementa endpoints para este domínio; a manipulação deve ser feita diretamente pelo Hasura utilizando essas tabelas.
+- `0005_insert_default_admin_user.sql`: garante a existência de um administrador padrão (`admin@admin.com` / `admin@mudar123`), atualizando a senha sempre que a migração for reaplicada e ligando o registro à tabela `admins`.
 
 ## Endpoints Disponíveis
 
 | Método | Rota | Descrição |
 | --- | --- | --- |
-| `POST` | `/auth/register` | Cria um novo usuário, atribui o papel padrão e retorna tokens de acesso/refresh. |
+| `POST` | `/auth/register` (`/register`) | Cria um novo usuário, atribui o papel padrão e retorna tokens de acesso/refresh. |
 | `POST` | `/auth/login` | Autentica um usuário existente retornando novos tokens. |
 | `POST` | `/auth/refresh` | Rotaciona o token de refresh e devolve um novo par de tokens. |
 | `POST` | `/auth/logout` | Revoga um token de refresh específico. |
@@ -90,6 +105,30 @@ hasura metadata apply --endpoint <HASURA_URL> --admin-secret <SENHA> --project m
 ```
 
 (Substitua `<HASURA_URL>` e `<SENHA>` conforme o ambiente.)
+
+### Configuração do JWT no Hasura
+
+O backend assina os tokens com o segredo simétrico definido em `JWT_SECRET` e inclui os papéis `user`, `photographer` e `admin`.
+No Hasura, configure a variável `HASURA_GRAPHQL_JWT_SECRET` apontando explicitamente cada papel permitido:
+
+```json
+{
+  "type": "HS256",
+  "key": "<mesmo valor de JWT_SECRET>",
+  "claims_namespace": "https://hasura.io/jwt/claims",
+  "claims_format": "json",
+  "claims_map": {
+    "x-hasura-allowed-roles": { "value": ["user", "photographer", "admin"] },
+    "x-hasura-default-role": { "path": "$.defaultRole" },
+    "x-hasura-role": { "path": "$.role" },
+    "x-hasura-user-id": { "path": "$.sub" },
+    "x-hasura-email": { "path": "$.email" }
+  }
+}
+```
+
+Esse mapeamento garante que o Hasura reconheça nominalmente todos os papéis suportados pela aplicação e utilize o papel padrão
+informado no token quando nenhum cabeçalho `x-hasura-role` for enviado.
 
 ## Fluxo de Autenticação
 
